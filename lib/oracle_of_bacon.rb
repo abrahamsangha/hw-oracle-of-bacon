@@ -12,7 +12,7 @@ class OracleOfBacon
 
   attr_accessor :from, :to
   attr_reader :api_key, :response, :uri
-  
+
   include ActiveModel::Validations
   validates_presence_of :from
   validates_presence_of :to
@@ -21,10 +21,14 @@ class OracleOfBacon
 
   def from_does_not_equal_to
     # YOUR CODE HERE
+    errors.add(:error, "From cannot be the same as To") if from == to
   end
 
   def initialize(api_key='')
     # your code here
+    @api_key = api_key
+    @from = 'Kevin Bacon'
+    @to = 'Kevin Bacon'
   end
 
   def find_connections
@@ -37,15 +41,20 @@ class OracleOfBacon
       # convert all of these into a generic OracleOfBacon::NetworkError,
       #  but keep the original error message
       # your code here
+      raise NetworkError
     end
+    @response = Response.new(xml)
     # your code here: create the OracleOfBacon::Response object
   end
 
   def make_uri_from_arguments
+    #http://oracleofbacon.org/cgi-bin/xml?p=my_key&a=Kevin+Bacon&b=Laurence+Olivier
     # your code here: set the @uri attribute to properly-escaped URI
     #   constructed from the @from, @to, @api_key arguments
+    base_uri = 'http://oracleofbacon.org/cgi-bin/xml?p='
+    @uri = "#{base_uri}#{api_key}&a=#{CGI.escape(@from)}&b=#{CGI.escape(@to)}"
   end
-      
+
   class Response
     attr_reader :type, :data
     # create a Response object from a string of XML markup.
@@ -61,12 +70,32 @@ class OracleOfBacon
         parse_error_response
       # your code here: 'elsif' clauses to handle other responses
       # for responses not matching the 3 basic types, the Response
-      # object should have type 'unknown' and data 'unknown response'         
+      # object should have type 'unknown' and data 'unknown response'
+      elsif ! @doc.xpath('/spellcheck').empty?
+        parse_spellcheck_response
+      elsif ! @doc.xpath('/link').empty?
+        parse_graph_response
+      else
+        parse_unknown_response
       end
     end
     def parse_error_response
       @type = :error
       @data = 'Unauthorized access'
+    end
+    def parse_spellcheck_response
+      @type = :spellcheck
+      @data = @doc.xpath('//match').map(&:text)
+    end
+    def parse_graph_response
+      @type = :graph
+      actors = @doc.xpath('//actor').map(&:text)
+      movies = @doc.xpath('//movie').map(&:text)
+      @data = actors.zip(movies).flatten.compact
+    end
+    def parse_unknown_response
+      @type = :unknown
+      @data = 'unknown response type'
     end
   end
 end
